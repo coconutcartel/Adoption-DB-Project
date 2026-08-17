@@ -20,11 +20,24 @@ A mobile-first adoption web app/PWA foundation built with React, TypeScript, Vit
 
 `Rehome` is only a working name and can be changed later.
 
+## V2 additions
+
+- Admin-only creative import for new listings
+- Cloudflare Workers AI extraction from adoption creatives
+- Human review before a listing is created or published
+- Uploaded creative carried into the new listing as its first image
+- Share button on animal profiles
+- WhatsApp contact text includes a dedicated share URL
+- `/share/:id` route with Open Graph metadata for animal-photo previews
+
+The creative importer uses a Cloudflare Workers AI binding named `AI`; no OpenAI API key is required.
+
 ## Stack
 
 - React + TypeScript + Vite
 - Supabase Postgres, Auth, Storage and Realtime
 - Cloudflare Pages for web deployment
+- Cloudflare Workers AI for admin creative extraction
 - GitHub for source control
 
 ## 1. Create Supabase project
@@ -76,6 +89,7 @@ Connect the GitHub repository to Cloudflare Pages and use:
 - Build command: `npm run build`
 - Build output directory: `dist`
 - Environment variables: same two `VITE_SUPABASE_*` values above
+- Workers AI binding: `AI`
 
 The included `public/_redirects` supports React Router deep links on Pages.
 
@@ -108,7 +122,6 @@ Before a broad public launch, add:
 - Email notifications to fosterers/moderators
 - Automated backups / export process
 - Accessibility and device testing
-
 
 ## Free Smart Adoption Finder
 
