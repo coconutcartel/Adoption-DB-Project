@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { createAnimalDraft, getAnimal, publishAnimal, removeAnimalPhoto, updateAnimal, uploadAnimalPhotos } from '../lib/api'
 import type { AgeUnit, Animal, AnimalSize, Sex, Species, YesNoUnknown } from '../types'
 
 const blank = {
-  name: '', species: 'dog' as Species, other_species: '', breed: '', sex: 'unknown' as Sex,
+  name: '', species: '' as Species, other_species: '', breed: '', sex: 'unknown' as Sex,
   age_value: '', age_unit: 'years' as AgeUnit, size: 'unknown' as AnimalSize,
   city: '', state: 'Goa', country: 'India', description: '', temperament: '',
   sterilised: 'unknown' as YesNoUnknown, vaccinated: 'unknown' as YesNoUnknown, dewormed: 'unknown' as YesNoUnknown,
@@ -14,6 +14,11 @@ const blank = {
 }
 
 type FormState = typeof blank
+type ImportState = {
+  imported?: Record<string, string>
+  creativeFile?: File
+}
+
 const ynu = <><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></>
 
 export default function ListingFormPage() {
@@ -21,6 +26,7 @@ export default function ListingFormPage() {
   const editing = Boolean(id)
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [form, setForm] = useState<FormState>(blank)
   const [existing, setExisting] = useState<Animal | null>(null)
   const [files, setFiles] = useState<File[]>([])
@@ -29,6 +35,30 @@ export default function ListingFormPage() {
   const previews = useMemo(() => files.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })), [files])
 
   useEffect(() => () => previews.forEach((item) => URL.revokeObjectURL(item.url)), [previews])
+
+  useEffect(() => {
+    if (editing) return
+    const state = location.state as ImportState | null
+    if (!state?.imported) return
+    const value = state.imported
+    const species = value.species === 'dog' || value.species === 'cat' || value.species === 'other' ? value.species as Species : '' as Species
+    const ageUnit = value.age_unit === 'months' || value.age_unit === 'years' ? value.age_unit as AgeUnit : 'years'
+    const size = ['small', 'medium', 'large'].includes(value.size) ? value.size as AnimalSize : 'unknown'
+    const sex = value.sex === 'male' || value.sex === 'female' ? value.sex as Sex : 'unknown'
+    const ynuValue = (input: string | undefined): YesNoUnknown => input === 'yes' || input === 'no' ? input : 'unknown'
+
+    setForm({
+      name: value.name || '', species, other_species: value.other_species || '', breed: value.breed || '', sex,
+      age_value: value.age_value || '', age_unit: ageUnit, size,
+      city: value.city || '', state: value.state || '', country: value.country || '', description: value.description || '', temperament: value.temperament || '',
+      sterilised: ynuValue(value.sterilised), vaccinated: ynuValue(value.vaccinated), dewormed: ynuValue(value.dewormed),
+      good_with_dogs: ynuValue(value.good_with_dogs), good_with_cats: ynuValue(value.good_with_cats), good_with_children: ynuValue(value.good_with_children),
+      special_needs: value.special_needs || '', medical_notes: value.medical_notes || '', adoption_requirements: value.adoption_requirements || '',
+      contact_name: value.contact_name || '', contact_phone: value.contact_phone || '', whatsapp_ok: true,
+    })
+    if (state.creativeFile instanceof File) setFiles([state.creativeFile])
+    window.history.replaceState({}, document.title)
+  }, [editing, location.state])
 
   useEffect(() => {
     if (!id || !user) return
@@ -100,10 +130,10 @@ export default function ListingFormPage() {
         <fieldset disabled={saving || (editing && existing?.moderation_status !== 'active')}>
           <div className="form-section"><h2>About the animal</h2><div className="form-grid three">
             <label><span>Name *</span><input required value={form.name} onChange={(e) => set('name', e.target.value)}/></label>
-            <label><span>Species *</span><select value={form.species} onChange={(e) => set('species', e.target.value as Species)}><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></label>
+            <label><span>Species *</span><select required value={form.species} onChange={(e) => set('species', e.target.value as Species)}><option value="" disabled>Select species</option><option value="dog">Dog</option><option value="cat">Cat</option><option value="other">Other</option></select></label>
             {form.species === 'other' ? <label><span>Species name *</span><input required value={form.other_species} onChange={(e) => set('other_species', e.target.value)}/></label> : <label><span>Breed / type</span><input value={form.breed} onChange={(e) => set('breed', e.target.value)} placeholder="e.g. Indie mix"/></label>}
             <label><span>Sex *</span><select value={form.sex} onChange={(e) => set('sex', e.target.value as Sex)}><option value="unknown">Unknown</option><option value="male">Male</option><option value="female">Female</option></select></label>
-            <label><span>Approx. age</span><input type="number" min="0" max="50" value={form.age_value} onChange={(e) => set('age_value', e.target.value)}/></label>
+            <label><span>Approx. age</span><input type="number" min="0" max="600" value={form.age_value} onChange={(e) => set('age_value', e.target.value)}/></label>
             <label><span>Age unit</span><select value={form.age_unit} onChange={(e) => set('age_unit', e.target.value as AgeUnit)}><option value="months">Months</option><option value="years">Years</option></select></label>
             <label><span>Size</span><select value={form.size} onChange={(e) => set('size', e.target.value as AnimalSize)}><option value="unknown">Unknown</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
           </div></div>
@@ -114,7 +144,7 @@ export default function ListingFormPage() {
 
           <div className="form-section"><h2>Health & compatibility</h2><div className="form-grid three"><label><span>Sterilised</span><select value={form.sterilised} onChange={(e) => set('sterilised', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Vaccinated</span><select value={form.vaccinated} onChange={(e) => set('vaccinated', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Dewormed</span><select value={form.dewormed} onChange={(e) => set('dewormed', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Good with dogs</span><select value={form.good_with_dogs} onChange={(e) => set('good_with_dogs', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Good with cats</span><select value={form.good_with_cats} onChange={(e) => set('good_with_cats', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Good with children</span><select value={form.good_with_children} onChange={(e) => set('good_with_children', e.target.value as YesNoUnknown)}>{ynu}</select></label></div><div className="form-grid"><label><span>Special needs</span><textarea rows={3} value={form.special_needs} onChange={(e) => set('special_needs', e.target.value)}/></label><label><span>Medical notes</span><textarea rows={3} value={form.medical_notes} onChange={(e) => set('medical_notes', e.target.value)}/></label><label className="full"><span>Adoption requirements</span><textarea rows={3} value={form.adoption_requirements} onChange={(e) => set('adoption_requirements', e.target.value)}/></label></div></div>
 
-          <div className="form-section"><h2>Photos *</h2><p className="section-help">Add 1–5 clear photos. Avoid phone numbers or personal information inside images.</p>
+          <div className="form-section"><h2>Photos *</h2><p className="section-help">Add 1–5 clear photos. An imported creative is added here as the first image automatically.</p>
             {existing?.animal_photos && existing.animal_photos.length > 0 && <div className="upload-preview-grid">{existing.animal_photos.map((photo) => <div className="upload-preview" key={photo.id}><img src={photo.public_url} alt=""/><button type="button" onClick={() => removePhoto(photo.id, photo.storage_path)}>Remove</button></div>)}</div>}
             {previews.length > 0 && <div className="upload-preview-grid">{previews.map((item) => <div className="upload-preview" key={item.url}><img src={item.url} alt=""/><span>{item.name}</span></div>)}</div>}
             <label className="file-drop"><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => setFiles(Array.from(e.target.files || []).slice(0, 5))}/><strong>Choose photos</strong><span>JPG, PNG or WebP · max 8 MB each · up to 5 files</span></label>
