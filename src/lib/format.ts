@@ -1,0 +1,23 @@
+import type { Animal } from '../types'
+
+export function formatAge(animal: Animal) {
+  if (!animal.age_value || !animal.age_unit) return 'Age unknown'
+  const unit = animal.age_value === 1 ? animal.age_unit.replace(/s$/, '') : animal.age_unit
+  return `${animal.age_value} ${unit}`
+}
+
+export function formatSpecies(animal: Animal) {
+  if (animal.species === 'other' && animal.other_species) return animal.other_species
+  return animal.species.charAt(0).toUpperCase() + animal.species.slice(1)
+}
+
+export function prettyValue(value: string | null | undefined) {
+  if (!value) return 'Unknown'
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+export function whatsappLink(phone: string, animalName: string) {
+  const digits = phone.replace(/\D/g, '')
+  const text = encodeURIComponent(`Hi, I'm interested in adopting ${animalName}. I found the listing on Rehome.`)
+  return `https://wa.me/${digits}?text=${text}`
+}
