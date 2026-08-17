@@ -140,7 +140,17 @@ function readBox(item: unknown): CropBox | null {
 
 function unionDetectedBoxes(result: unknown): CropBox | null {
   const record = result && typeof result === 'object' ? result as Record<string, unknown> : null
-  const rawObjects = Array.isArray(record?.objects) ? record.objects : Array.isArray(result) ? result : []
+  const response = record?.response && typeof record.response === 'object' ? record.response as Record<string, unknown> : null
+  const nestedResult = record?.result && typeof record.result === 'object' ? record.result as Record<string, unknown> : null
+  const rawObjects = Array.isArray(record?.objects)
+    ? record.objects
+    : Array.isArray(response?.objects)
+      ? response.objects
+      : Array.isArray(nestedResult?.objects)
+        ? nestedResult.objects
+        : Array.isArray(result)
+          ? result
+          : []
   const boxes = rawObjects.map(readBox).filter((box): box is CropBox => Boolean(box))
   if (!boxes.length) return null
 
@@ -152,10 +162,34 @@ function unionDetectedBoxes(result: unknown): CropBox | null {
   }))
 }
 
-function readVisionAnswer(result: unknown) {
+function readVisionAnswer(result: unknown): string {
+  if (typeof result === 'string') return result.trim()
   if (!result || typeof result !== 'object') return ''
-  const answer = (result as Record<string, unknown>).answer
-  return typeof answer === 'string' ? answer.trim() : ''
+
+  const record = result as Record<string, unknown>
+  const direct = stringValue(record.answer) || stringValue(record.response) || stringValue(record.output_text) || stringValue(record.text)
+  if (direct) return direct
+
+  for (const key of ['result', 'response', 'output', 'data']) {
+    const nested = record[key]
+    if (typeof nested === 'string' && nested.trim()) return nested.trim()
+    if (nested && typeof nested === 'object') {
+      const nestedRecord = nested as Record<string, unknown>
+      const nestedText = stringValue(nestedRecord.answer) || stringValue(nestedRecord.response) || stringValue(nestedRecord.output_text) || stringValue(nestedRecord.text)
+      if (nestedText) return nestedText
+    }
+  }
+
+  const choices = Array.isArray(record.choices) ? record.choices : []
+  for (const choice of choices) {
+    if (!choice || typeof choice !== 'object') continue
+    const choiceRecord = choice as Record<string, unknown>
+    const message = choiceRecord.message && typeof choiceRecord.message === 'object' ? choiceRecord.message as Record<string, unknown> : null
+    const choiceText = stringValue(message?.content) || stringValue(choiceRecord.text)
+    if (choiceText) return choiceText
+  }
+
+  return ''
 }
 
 export async function onRequestPost(context: PagesContext) {
@@ -190,7 +224,10 @@ export async function onRequestPost(context: PagesContext) {
     })
 
     const visibleText = readVisionAnswer(visionResult)
-    if (!visibleText) throw new Error('Cloudflare could not read text from this creative. Try a clearer or higher-resolution image.')
+    if (!visibleText) {
+      console.warn('Moondream returned no readable OCR text', visionResult)
+      throw new Error('Cloudflare could not read text from this creative. Try a clearer or higher-resolution image.')
+    }
 
     const extractionPrompt = `
 You are extracting a NEW animal adoption listing from OCR text read from an adoption creative.
