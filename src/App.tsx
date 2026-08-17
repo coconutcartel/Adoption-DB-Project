@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ListingFormPage from './pages/ListingFormPage'
 import ModerationPage from './pages/ModerationPage'
+import ImportCreativePage from './pages/ImportCreativePage'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="dashboard/new" element={<ProtectedRoute><ListingFormPage /></ProtectedRoute>} />
+          <Route path="dashboard/import" element={<ProtectedRoute admin><ImportCreativePage /></ProtectedRoute>} />
           <Route path="dashboard/edit/:id" element={<ProtectedRoute><ListingFormPage /></ProtectedRoute>} />
           <Route path="moderation" element={<ProtectedRoute moderator><ModerationPage /></ProtectedRoute>} />
           <Route path="*" element={<div className="container not-found"><h1>Page not found</h1><a className="button" href="/">Go home</a></div>} />
