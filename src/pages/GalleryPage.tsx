@@ -29,12 +29,15 @@ export default function GalleryPage() {
   }, [loadAnimals])
 
   useEffect(() => {
-    if (!supabase || !isSupabaseConfigured) return
-    const channel = supabase
+    const client = supabase
+    if (!client || !isSupabaseConfigured) return
+
+    const channel = client
       .channel('public-listing-events')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'public_listing_events' }, () => loadAnimals())
       .subscribe()
-    return () => { void supabase.removeChannel(channel) }
+
+    return () => { void client.removeChannel(channel) }
   }, [loadAnimals])
 
   return (
