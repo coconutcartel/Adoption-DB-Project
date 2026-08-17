@@ -1,5 +1,14 @@
+interface MarkdownResult {
+  format: 'markdown' | 'text' | 'error'
+  data?: string
+  error?: string
+}
+
 interface Env {
-  AI?: { run: (model: string, input: unknown) => Promise<unknown> }
+  AI?: {
+    run: (model: string, input: unknown) => Promise<unknown>
+    toMarkdown: (file: { name: string; blob: Blob }) => Promise<MarkdownResult>
+  }
   VITE_SUPABASE_URL?: string
   VITE_SUPABASE_PUBLISHABLE_KEY?: string
 }
@@ -12,15 +21,10 @@ type PagesContext = {
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
-}
-
-function toBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-  return btoa(binary)
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  })
 }
 
 async function requireAdmin(request: Request, env: Env) {
@@ -47,6 +51,7 @@ async function requireAdmin(request: Request, env: Env) {
 
 const schema = {
   type: 'object',
+  additionalProperties: false,
   properties: {
     name: { type: 'string' },
     species: { type: 'string', enum: ['dog', 'cat', 'other', 'unknown'] },
@@ -73,7 +78,24 @@ const schema = {
     contact_name: { type: 'string' },
     contact_phone: { type: 'string' },
   },
-  required: ['name','species','other_species','breed','sex','age_value','age_unit','size','city','state','country','description','temperament','sterilised','vaccinated','dewormed','good_with_dogs','good_with_cats','good_with_children','special_needs','medical_notes','adoption_requirements','contact_name','contact_phone'],
+  required: [
+    'name','species','other_species','breed','sex','age_value','age_unit','size','city','state','country',
+    'description','temperament','sterilised','vaccinated','dewormed','good_with_dogs','good_with_cats',
+    'good_with_children','special_needs','medical_notes','adoption_requirements','contact_name','contact_phone',
+  ],
+}
+
+function parseStructuredResult(result: unknown) {
+  const response = (result as { response?: unknown } | null)?.response ?? result
+  if (response && typeof response === 'object') return response
+  if (typeof response !== 'string' || !response.trim()) throw new Error('AI returned no structured data.')
+
+  const cleaned = response.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  try {
+    return JSON.parse(cleaned)
+  } catch {
+    throw new Error('AI returned an unreadable structured response. Please try the scan again.')
+  }
 }
 
 export async function onRequestPost(context: PagesContext) {
@@ -87,31 +109,52 @@ export async function onRequestPost(context: PagesContext) {
     if (!allowedTypes.has(file.type)) return json({ error: 'Use a JPG, PNG or WebP creative.' }, 400)
     if (file.size > 8 * 1024 * 1024) return json({ error: 'Creative must be 8 MB or smaller.' }, 400)
 
-    const imageUrl = `data:${file.type};base64,${toBase64(await file.arrayBuffer())}`
-    const result = await context.env.AI.run('@cf/google/gemma-4-26b-a4b-it', {
+    // First use Cloudflare's document/image conversion service to read the creative.
+    // This avoids relying on a vision model that does not currently support JSON Mode.
+    const converted = await context.env.AI.toMarkdown({
+      name: file.name || 'adoption-creative',
+      blob: file,
+    })
+
+    if (converted.format === 'error' || !converted.data?.trim()) {
+      throw new Error(converted.error || 'Cloudflare could not read this creative. Try a clearer image.')
+    }
+
+    const extractionPrompt = `
+You are extracting a NEW animal adoption listing from text produced from an adoption creative.
+
+Rules:
+- Use only facts explicitly stated in the supplied converted content.
+- The converted content may contain visual descriptions generated from the image. Do NOT use visual appearance alone to infer age, sex, breed, size, health, sterilisation, vaccination, temperament, compatibility, medical status or special needs.
+- Never invent missing details.
+- For missing text fields return an empty string.
+- For missing enum fields return "unknown".
+- Preserve phone numbers accurately.
+- country may be "India" only when the supplied content clearly identifies an Indian place/context; otherwise return an empty string.
+- description should summarise only factual adoption information present in the creative; do not add promotional claims that are not present.
+
+Converted creative content:
+---
+${converted.data}
+---
+`
+
+    const result = await context.env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', {
       messages: [
         {
           role: 'system',
-          content: 'You extract factual adoption-listing information from animal adoption posters. Never guess. Only use facts explicitly written in the image. Visual appearance alone must not be used to infer age, sex, breed, health, sterilisation, vaccination, temperament, compatibility, or medical status. If a fact is not stated, return an empty string or unknown. Preserve phone numbers accurately. Return only the requested structured data.'
+          content: 'Extract factual animal adoption listing data. Never guess or infer unstated facts.',
         },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Read this adoption creative and extract the new-listing fields. Country may default to India only if the creative clearly refers to an Indian location; otherwise leave it blank.' },
-            { type: 'image_url', image_url: { url: imageUrl } },
-          ],
-        },
+        { role: 'user', content: extractionPrompt },
       ],
       response_format: { type: 'json_schema', json_schema: schema },
       temperature: 0.1,
-      max_completion_tokens: 1600,
-    }) as { response?: unknown; choices?: Array<{ message?: { content?: string } }> }
+      max_tokens: 1600,
+    })
 
-    let extracted: unknown = result.response ?? result.choices?.[0]?.message?.content ?? result
-    if (typeof extracted === 'string') extracted = JSON.parse(extracted)
-    return json({ data: extracted })
+    return json({ data: parseStructuredResult(result) })
   } catch (error) {
-    console.error(error)
+    console.error('Creative extraction failed', error)
     return json({ error: error instanceof Error ? error.message : 'Creative extraction failed.' }, 500)
   }
 }
