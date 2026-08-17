@@ -6,7 +6,7 @@ import { prettyValue } from '../lib/format'
 import type { AdoptionStatus, Animal } from '../types'
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, role } = useAuth()
   const [animals, setAnimals] = useState<Animal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -27,10 +27,28 @@ export default function DashboardPage() {
 
   return (
     <div className="container dashboard-page">
-      <div className="dashboard-heading"><div><div className="eyebrow">Fosterer dashboard</div><h1>My animals</h1><p>Keep every listing current. Status changes update the public gallery automatically.</p></div><Link className="button" to="/dashboard/new">+ List an animal</Link></div>
+      <div className="dashboard-heading">
+        <div>
+          <div className="eyebrow">Fosterer dashboard</div>
+          <h1>My animals</h1>
+          <p>Keep every listing current. Status changes update the public gallery automatically.</p>
+        </div>
+        <div className="hero-actions">
+          {role === 'admin' && <Link className="button button-secondary" to="/dashboard/import">Import creative</Link>}
+          <Link className="button" to="/dashboard/new">+ List an animal</Link>
+        </div>
+      </div>
       {error && <div className="error-box">{error}</div>}
       {loading ? <div className="page-loading">Loading your listings…</div> : animals.length === 0 ? (
-        <div className="empty-state dashboard-empty"><div className="empty-icon">♥</div><h2>No animals listed yet</h2><p>Create your first adoption listing.</p><Link className="button" to="/dashboard/new">List an animal</Link></div>
+        <div className="empty-state dashboard-empty">
+          <div className="empty-icon">♥</div>
+          <h2>No animals listed yet</h2>
+          <p>Create your first adoption listing.</p>
+          <div className="hero-actions">
+            {role === 'admin' && <Link className="button button-secondary" to="/dashboard/import">Import creative</Link>}
+            <Link className="button" to="/dashboard/new">List an animal</Link>
+          </div>
+        </div>
       ) : (
         <div className="dashboard-list">
           {animals.map((animal) => {
