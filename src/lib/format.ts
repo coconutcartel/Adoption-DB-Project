@@ -1,4 +1,5 @@
 import type { Animal } from '../types'
+import { internationalPhoneDigits, localPhoneDisplay } from './phone'
 
 export function formatAge(animal: Animal) {
   if (!animal.age_value || !animal.age_unit) return 'Age unknown'
@@ -21,8 +22,17 @@ export function shareUrl(animalId: string) {
   return `${origin}/share/${animalId}`
 }
 
-export function whatsappLink(phone: string, animalName: string, animalId: string) {
-  const digits = phone.replace(/\D/g, '')
-  const text = encodeURIComponent(`Hi, I'm interested in adopting ${animalName}. I found the listing on Rehome.\n\n${shareUrl(animalId)}`)
+export function contactPhoneDisplay(phone: string, country: string) {
+  return localPhoneDisplay(phone, country)
+}
+
+export function phoneLink(phone: string, country: string) {
+  const digits = internationalPhoneDigits(phone, country)
+  return digits ? `tel:+${digits}` : `tel:${phone}`
+}
+
+export function whatsappLink(phone: string, animalName: string, animalId: string, country: string) {
+  const digits = internationalPhoneDigits(phone, country)
+  const text = encodeURIComponent(`Hi, I'm interested in adopting ${animalName}. I found the listing on rehome.\n\n${shareUrl(animalId)}`)
   return `https://wa.me/${digits}?text=${text}`
 }
