@@ -36,10 +36,11 @@ export default function AnimalPage() {
   const photos = animal.animal_photos ?? []
   const mainPhoto = photos[photoIndex]?.public_url
   const isOwner = user?.id === animal.owner_id
+  const animalId = animal.id
 
   function openReport() {
     if (!user) {
-      navigate('/login', { state: { from: `/animals/${animal.id}`, reportAfterLogin: true } })
+      navigate('/login', { state: { from: `/animals/${animalId}`, reportAfterLogin: true } })
       return
     }
     setReportOpen(true)
