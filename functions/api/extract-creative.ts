@@ -1,9 +1,3 @@
-interface MarkdownResult {
-  format: 'markdown' | 'text' | 'error'
-  data?: string
-  error?: string
-}
-
 interface CropBox {
   xmin: number
   ymin: number
@@ -14,10 +8,6 @@ interface CropBox {
 interface Env {
   AI?: {
     run: (model: string, input: unknown) => Promise<unknown>
-    toMarkdown: (
-      file: { name: string; blob: Blob },
-      options?: unknown,
-    ) => Promise<MarkdownResult | MarkdownResult[]>
   }
   VITE_SUPABASE_URL?: string
   VITE_SUPABASE_PUBLISHABLE_KEY?: string
@@ -148,12 +138,24 @@ function readBox(item: unknown): CropBox | null {
   return { xmin, ymin, xmax, ymax }
 }
 
-function largestDetectedBox(result: unknown): CropBox | null {
+function unionDetectedBoxes(result: unknown): CropBox | null {
   const record = result && typeof result === 'object' ? result as Record<string, unknown> : null
   const rawObjects = Array.isArray(record?.objects) ? record.objects : Array.isArray(result) ? result : []
   const boxes = rawObjects.map(readBox).filter((box): box is CropBox => Boolean(box))
   if (!boxes.length) return null
-  return boxes.sort((a, b) => ((b.xmax - b.xmin) * (b.ymax - b.ymin)) - ((a.xmax - a.xmin) * (a.ymax - a.ymin)))[0]
+
+  return boxes.reduce<CropBox>((union, box) => ({
+    xmin: Math.min(union.xmin, box.xmin),
+    ymin: Math.min(union.ymin, box.ymin),
+    xmax: Math.max(union.xmax, box.xmax),
+    ymax: Math.max(union.ymax, box.ymax),
+  }))
+}
+
+function readVisionAnswer(result: unknown) {
+  if (!result || typeof result !== 'object') return ''
+  const answer = (result as Record<string, unknown>).answer
+  return typeof answer === 'string' ? answer.trim() : ''
 }
 
 export async function onRequestPost(context: PagesContext) {
@@ -167,32 +169,45 @@ export async function onRequestPost(context: PagesContext) {
     if (!allowedTypes.has(file.type)) return json({ error: 'Use a JPG, PNG or WebP creative.' }, 400)
     if (file.size > 8 * 1024 * 1024) return json({ error: 'Creative must be 8 MB or smaller.' }, 400)
 
-    const convertedResult = await context.env.AI.toMarkdown(
-      { name: file.name || 'adoption-creative', blob: new Blob([await file.arrayBuffer()], { type: file.type }) },
-      { conversionOptions: { output: { format: 'text' } } },
-    )
-    const converted = Array.isArray(convertedResult) ? convertedResult[0] : convertedResult
+    const fileBuffer = await file.arrayBuffer()
+    const image = `data:${file.type};base64,${toBase64(fileBuffer)}`
 
-    if (!converted || converted.format === 'error' || !converted.data?.trim()) {
-      throw new Error(converted?.error || 'Cloudflare could not read this creative. Try a clearer image.')
-    }
+    // Moondream is a lightweight vision model designed for OCR and document/image field extraction.
+    // It avoids the much heavier toMarkdown image pipeline, which can time out on Gemma 4.
+    const visionResult = await context.env.AI.run('@cf/moondream/moondream3.1-9B-A2B', {
+      task: 'query',
+      image,
+      question: [
+        'Transcribe every piece of visible text in this animal adoption poster as accurately as possible.',
+        'Preserve names, ages, sex, breed/type, locations, phone numbers, health/vaccination/sterilisation details, temperament, compatibility and adoption requirements exactly when written.',
+        'Do not infer facts from the animal appearance. Do not add information that is not visibly written.',
+        'Return plain text only.',
+      ].join(' '),
+      reasoning: false,
+      temperature: 0,
+      max_tokens: 2400,
+      stream: false,
+    })
+
+    const visibleText = readVisionAnswer(visionResult)
+    if (!visibleText) throw new Error('Cloudflare could not read text from this creative. Try a clearer or higher-resolution image.')
 
     const extractionPrompt = `
-You are extracting a NEW animal adoption listing from text produced from an adoption creative.
+You are extracting a NEW animal adoption listing from OCR text read from an adoption creative.
 
 Rules:
-- Use only facts explicitly stated in the supplied converted content.
+- Use only facts explicitly stated in the supplied OCR text.
 - Do NOT infer age, sex, breed, size, health, sterilisation, vaccination, temperament, compatibility, medical status or special needs from visual appearance.
 - Never invent missing factual details.
 - For missing text fields return an empty string.
 - For missing enum fields return "unknown".
 - Preserve phone numbers accurately, including a country code if one is printed. The app will remove the country code later.
 - country may be "India" only when the supplied content clearly identifies an Indian place/context; otherwise return an empty string.
-- description should summarise only factual adoption information present in the creative.
+- description should summarise only factual adoption information present in the OCR text.
 
-Converted creative content:
+OCR text from creative:
 ---
-${converted.data}
+${visibleText}
 ---
 `
 
@@ -211,12 +226,11 @@ ${converted.data}
     const missingName = !stringValue(extracted.name)
     const missingContactName = !stringValue(extracted.contact_name)
 
-    if (missingName) extracted.name = cuteName(species, `${file.name}:${converted.data.slice(0, 600)}`)
+    if (missingName) extracted.name = cuteName(species, `${file.name}:${visibleText.slice(0, 600)}`)
     if (missingContactName) extracted.contact_name = 'Fosterer'
 
     let crop: CropBox | null = null
     try {
-      const image = `data:${file.type};base64,${toBase64(await file.arrayBuffer())}`
       const target = species === 'dog' || species === 'cat'
         ? species
         : stringValue(extracted.other_species) || 'animal'
@@ -227,7 +241,7 @@ ${converted.data}
         max_objects: 12,
         stream: false,
       })
-      crop = largestDetectedBox(detection)
+      crop = unionDetectedBoxes(detection)
 
       if (!crop && target !== 'animal') {
         const fallbackDetection = await context.env.AI.run('@cf/moondream/moondream3.1-9B-A2B', {
@@ -237,7 +251,7 @@ ${converted.data}
           max_objects: 12,
           stream: false,
         })
-        crop = largestDetectedBox(fallbackDetection)
+        crop = unionDetectedBoxes(fallbackDetection)
       }
     } catch (cropError) {
       console.warn('Animal crop detection failed', cropError)
