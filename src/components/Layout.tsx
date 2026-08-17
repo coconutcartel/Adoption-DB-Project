@@ -21,6 +21,7 @@ export default function Layout() {
           <nav className="nav-links" aria-label="Primary navigation">
             <NavLink to="/" end>Adopt</NavLink>
             {user && <NavLink to="/dashboard">My animals</NavLink>}
+            {role === 'admin' && <NavLink to="/dashboard/import">Import creative</NavLink>}
             {(role === 'moderator' || role === 'admin') && <NavLink to="/moderation">Reports</NavLink>}
             {!user ? (
               <NavLink className="button button-small" to="/login">Fosterer login</NavLink>
