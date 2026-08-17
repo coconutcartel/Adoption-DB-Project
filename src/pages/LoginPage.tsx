@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import BrandMark from '../components/BrandMark'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -38,7 +39,7 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <Link className="brand auth-brand" to="/"><span className="brand-mark">♥</span><span>Rehome</span></Link>
+        <Link className="brand auth-brand" to="/"><BrandMark/><span>rehome</span></Link>
         <div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Sign in</button><button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')}>Create account</button></div>
         <h1>{mode === 'login' ? 'Welcome back' : 'Create your fosterer account'}</h1>
         <p className="muted">{mode === 'login' ? 'Manage your animal listings or submit a community report.' : 'Your account lets you publish and maintain animals in your care.'}</p>
