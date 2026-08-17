@@ -16,8 +16,13 @@ export function prettyValue(value: string | null | undefined) {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-export function whatsappLink(phone: string, animalName: string) {
+export function shareUrl(animalId: string) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/share/${animalId}`
+}
+
+export function whatsappLink(phone: string, animalName: string, animalId: string) {
   const digits = phone.replace(/\D/g, '')
-  const text = encodeURIComponent(`Hi, I'm interested in adopting ${animalName}. I found the listing on Rehome.`)
+  const text = encodeURIComponent(`Hi, I'm interested in adopting ${animalName}. I found the listing on Rehome.\n\n${shareUrl(animalId)}`)
   return `https://wa.me/${digits}?text=${text}`
 }
