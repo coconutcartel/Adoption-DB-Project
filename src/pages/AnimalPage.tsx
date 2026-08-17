@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReportModal from '../components/ReportModal'
 import { useAuth } from '../contexts/AuthContext'
-import { formatAge, formatSpecies, prettyValue, whatsappLink } from '../lib/format'
+import { formatAge, formatSpecies, prettyValue, shareUrl, whatsappLink } from '../lib/format'
 import { getAnimal } from '../lib/api'
 import type { Animal } from '../types'
 
@@ -46,6 +46,20 @@ export default function AnimalPage() {
     setReportOpen(true)
   }
 
+  async function shareListing() {
+    const url = shareUrl(animalId)
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${animal.name} is looking for a home`, text: `Meet ${animal.name} on Rehome.`, url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        alert('Listing link copied.')
+      }
+    } catch {
+      // The native share sheet can be dismissed without sharing.
+    }
+  }
+
   return (
     <div className="container animal-detail-page">
       <Link className="back-link" to="/">← Back to animals</Link>
@@ -78,8 +92,9 @@ export default function AnimalPage() {
           <div className="contact-card">
             <div><span className="eyebrow">Foster contact</span><h3>{animal.contact_name}</h3><p>{animal.contact_phone}</p></div>
             <div className="contact-actions">
-              {animal.whatsapp_ok && <a className="button" target="_blank" rel="noreferrer" href={whatsappLink(animal.contact_phone, animal.name)}>WhatsApp</a>}
+              {animal.whatsapp_ok && <a className="button" target="_blank" rel="noreferrer" href={whatsappLink(animal.contact_phone, animal.name, animal.id)}>WhatsApp</a>}
               <a className="button button-secondary" href={`tel:${animal.contact_phone}`}>Call</a>
+              <button className="button button-secondary" type="button" onClick={shareListing}>Share</button>
             </div>
           </div>
 
