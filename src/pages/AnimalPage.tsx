@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReportModal from '../components/ReportModal'
 import { useAuth } from '../contexts/AuthContext'
-import { formatAge, formatSpecies, prettyValue, shareUrl, whatsappLink } from '../lib/format'
+import { contactPhoneDisplay, formatAge, formatSpecies, phoneLink, prettyValue, shareUrl, whatsappLink } from '../lib/format'
 import { getAnimal } from '../lib/api'
 import type { Animal } from '../types'
 
@@ -38,6 +38,7 @@ export default function AnimalPage() {
   const isOwner = user?.id === animal.owner_id
   const animalId = animal.id
   const animalName = animal.name
+  const country = animal.country
 
   function openReport() {
     if (!user) {
@@ -51,7 +52,7 @@ export default function AnimalPage() {
     const url = shareUrl(animalId)
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${animalName} is looking for a home`, text: `Meet ${animalName} on Rehome.`, url })
+        await navigator.share({ title: `${animalName} is looking for a home`, text: `Meet ${animalName} on rehome.`, url })
       } else {
         await navigator.clipboard.writeText(url)
         alert('Listing link copied.')
@@ -91,10 +92,10 @@ export default function AnimalPage() {
           {animal.adoption_requirements && <div className="detail-section"><h3>Adoption requirements</h3><p>{animal.adoption_requirements}</p></div>}
 
           <div className="contact-card">
-            <div><span className="eyebrow">Foster contact</span><h3>{animal.contact_name}</h3><p>{animal.contact_phone}</p></div>
+            <div><span className="eyebrow">Foster contact</span><h3>{animal.contact_name}</h3><p>{contactPhoneDisplay(animal.contact_phone, country)}</p></div>
             <div className="contact-actions">
-              {animal.whatsapp_ok && <a className="button" target="_blank" rel="noreferrer" href={whatsappLink(animal.contact_phone, animal.name, animal.id)}>WhatsApp</a>}
-              <a className="button button-secondary" href={`tel:${animal.contact_phone}`}>Call</a>
+              {animal.whatsapp_ok && <a className="button" target="_blank" rel="noreferrer" href={whatsappLink(animal.contact_phone, animal.name, animal.id, country)}>WhatsApp</a>}
+              <a className="button button-secondary" href={phoneLink(animal.contact_phone, country)}>Call</a>
               <button className="button button-secondary" type="button" onClick={shareListing}>Share</button>
             </div>
           </div>
