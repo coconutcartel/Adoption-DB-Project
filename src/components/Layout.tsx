@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import BrandMark from './BrandMark'
 
 export default function Layout() {
   const { user, role, signOut, configured } = useAuth()
@@ -14,9 +15,9 @@ export default function Layout() {
     <div className="app-shell">
       <header className="site-header">
         <div className="container header-inner">
-          <Link className="brand" to="/" aria-label="Rehome home">
-            <span className="brand-mark">♥</span>
-            <span>Rehome</span>
+          <Link className="brand" to="/" aria-label="rehome home">
+            <BrandMark />
+            <span>rehome</span>
           </Link>
           <nav className="nav-links" aria-label="Primary navigation">
             <NavLink to="/" end>Adopt</NavLink>
@@ -41,7 +42,7 @@ export default function Layout() {
       <main><Outlet /></main>
       <footer className="site-footer">
         <div className="container footer-inner">
-          <div><strong>Rehome</strong><br/><span>Every animal deserves a safe home.</span></div>
+          <div><strong>rehome</strong><br/><span>Every animal deserves a safe home.</span></div>
           <div className="footer-note">Community listings. Please verify adoption details independently.</div>
         </div>
       </footer>
