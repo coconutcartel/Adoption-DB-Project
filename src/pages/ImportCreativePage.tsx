@@ -29,6 +29,8 @@ interface ExtractedListing {
   contact_phone: string
 }
 
+type ExtractionResponse = { data?: ExtractedListing; error?: string }
+
 export default function ImportCreativePage() {
   const { session } = useAuth()
   const navigate = useNavigate()
@@ -52,8 +54,23 @@ export default function ImportCreativePage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body,
       })
-      const result = await response.json() as { data?: ExtractedListing; error?: string }
-      if (!response.ok || !result.data) throw new Error(result.error || 'Could not extract listing information.')
+
+      const responseText = await response.text()
+      let result: ExtractionResponse = {}
+
+      if (responseText.trim()) {
+        try {
+          result = JSON.parse(responseText) as ExtractionResponse
+        } catch {
+          throw new Error(`Extraction service returned an unreadable response (HTTP ${response.status}). Please try again.`)
+        }
+      } else {
+        throw new Error(`Extraction service returned an empty response (HTTP ${response.status}). Please try again.`)
+      }
+
+      if (!response.ok || !result.data) {
+        throw new Error(result.error || 'Could not extract listing information.')
+      }
       setData(result.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not extract listing information.')
