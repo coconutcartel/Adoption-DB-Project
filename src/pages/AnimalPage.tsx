@@ -37,6 +37,7 @@ export default function AnimalPage() {
   const mainPhoto = photos[photoIndex]?.public_url
   const isOwner = user?.id === animal.owner_id
   const animalId = animal.id
+  const animalName = animal.name
 
   function openReport() {
     if (!user) {
@@ -50,7 +51,7 @@ export default function AnimalPage() {
     const url = shareUrl(animalId)
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${animal.name} is looking for a home`, text: `Meet ${animal.name} on Rehome.`, url })
+        await navigator.share({ title: `${animalName} is looking for a home`, text: `Meet ${animalName} on Rehome.`, url })
       } else {
         await navigator.clipboard.writeText(url)
         alert('Listing link copied.')
