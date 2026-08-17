@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { createAnimalDraft, getAnimal, publishAnimal, removeAnimalPhoto, updateAnimal, uploadAnimalPhotos } from '../lib/api'
+import { countryCallingCode, countryOptions, localPhoneNumber } from '../lib/phone'
 import type { AgeUnit, Animal, AnimalSize, Sex, Species, YesNoUnknown } from '../types'
 
 const blank = {
@@ -33,6 +34,7 @@ export default function ListingFormPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const previews = useMemo(() => files.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })), [files])
+  const dialCode = countryCallingCode(form.country)
 
   useEffect(() => () => previews.forEach((item) => URL.revokeObjectURL(item.url)), [previews])
 
@@ -46,15 +48,16 @@ export default function ListingFormPage() {
     const size = ['small', 'medium', 'large'].includes(value.size) ? value.size as AnimalSize : 'unknown'
     const sex = value.sex === 'male' || value.sex === 'female' ? value.sex as Sex : 'unknown'
     const ynuValue = (input: string | undefined): YesNoUnknown => input === 'yes' || input === 'no' ? input : 'unknown'
+    const importedCountry = value.country || 'India'
 
     setForm({
       name: value.name || '', species, other_species: value.other_species || '', breed: value.breed || '', sex,
       age_value: value.age_value || '', age_unit: ageUnit, size,
-      city: value.city || '', state: value.state || '', country: value.country || '', description: value.description || '', temperament: value.temperament || '',
+      city: value.city || '', state: value.state || '', country: importedCountry, description: value.description || '', temperament: value.temperament || '',
       sterilised: ynuValue(value.sterilised), vaccinated: ynuValue(value.vaccinated), dewormed: ynuValue(value.dewormed),
       good_with_dogs: ynuValue(value.good_with_dogs), good_with_cats: ynuValue(value.good_with_cats), good_with_children: ynuValue(value.good_with_children),
       special_needs: value.special_needs || '', medical_notes: value.medical_notes || '', adoption_requirements: value.adoption_requirements || '',
-      contact_name: value.contact_name || '', contact_phone: value.contact_phone || '', whatsapp_ok: true,
+      contact_name: value.contact_name?.trim() || 'Fosterer', contact_phone: localPhoneNumber(value.contact_phone || '', importedCountry), whatsapp_ok: true,
     })
     if (state.creativeFile instanceof File) setFiles([state.creativeFile])
     window.history.replaceState({}, document.title)
@@ -72,7 +75,7 @@ export default function ListingFormPage() {
         sterilised: animal.sterilised, vaccinated: animal.vaccinated, dewormed: animal.dewormed,
         good_with_dogs: animal.good_with_dogs, good_with_cats: animal.good_with_cats, good_with_children: animal.good_with_children,
         special_needs: animal.special_needs || '', medical_notes: animal.medical_notes || '', adoption_requirements: animal.adoption_requirements || '',
-        contact_name: animal.contact_name, contact_phone: animal.contact_phone, whatsapp_ok: animal.whatsapp_ok,
+        contact_name: animal.contact_name, contact_phone: localPhoneNumber(animal.contact_phone, animal.country), whatsapp_ok: animal.whatsapp_ok,
       })
     }).catch((err) => setError(err instanceof Error ? err.message : 'Could not load listing.'))
   }, [id, user])
@@ -86,7 +89,7 @@ export default function ListingFormPage() {
       size: form.size, city: form.city.trim(), state: form.state.trim() || null, country: form.country.trim(), description: form.description.trim(), temperament: form.temperament.trim() || null,
       sterilised: form.sterilised, vaccinated: form.vaccinated, dewormed: form.dewormed, good_with_dogs: form.good_with_dogs, good_with_cats: form.good_with_cats,
       good_with_children: form.good_with_children, special_needs: form.special_needs.trim() || null, medical_notes: form.medical_notes.trim() || null,
-      adoption_requirements: form.adoption_requirements.trim() || null, contact_name: form.contact_name.trim(), contact_phone: form.contact_phone.trim(), whatsapp_ok: form.whatsapp_ok,
+      adoption_requirements: form.adoption_requirements.trim() || null, contact_name: form.contact_name.trim() || 'Fosterer', contact_phone: localPhoneNumber(form.contact_phone, form.country), whatsapp_ok: form.whatsapp_ok,
     }
   }
 
@@ -138,19 +141,19 @@ export default function ListingFormPage() {
             <label><span>Size</span><select value={form.size} onChange={(e) => set('size', e.target.value as AnimalSize)}><option value="unknown">Unknown</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label>
           </div></div>
 
-          <div className="form-section"><h2>Location</h2><div className="form-grid three"><label><span>City / town *</span><input required value={form.city} onChange={(e) => set('city', e.target.value)}/></label><label><span>State</span><input value={form.state} onChange={(e) => set('state', e.target.value)}/></label><label><span>Country *</span><input required value={form.country} onChange={(e) => set('country', e.target.value)}/></label></div></div>
+          <div className="form-section"><h2>Location</h2><div className="form-grid three"><label><span>City / town *</span><input required value={form.city} onChange={(e) => set('city', e.target.value)}/></label><label><span>State</span><input value={form.state} onChange={(e) => set('state', e.target.value)}/></label><label><span>Country *</span><select required value={form.country} onChange={(e) => set('country', e.target.value)}><option value="" disabled>Select country</option>{countryOptions.map((country) => <option key={country.code} value={country.name}>{country.name}</option>)}</select></label></div></div>
 
           <div className="form-section"><h2>Story & personality</h2><div className="form-grid"><label className="full"><span>Description *</span><textarea required rows={6} minLength={30} maxLength={2500} value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Tell adopters who this animal is, how they came into your care, and what kind of home would suit them."/></label><label className="full"><span>Temperament</span><textarea rows={3} value={form.temperament} onChange={(e) => set('temperament', e.target.value)} placeholder="e.g. affectionate, shy at first, playful…"/></label></div></div>
 
           <div className="form-section"><h2>Health & compatibility</h2><div className="form-grid three"><label><span>Sterilised</span><select value={form.sterilised} onChange={(e) => set('sterilised', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Vaccinated</span><select value={form.vaccinated} onChange={(e) => set('vaccinated', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Dewormed</span><select value={form.dewormed} onChange={(e) => set('dewormed', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Good with dogs</span><select value={form.good_with_dogs} onChange={(e) => set('good_with_dogs', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Good with cats</span><select value={form.good_with_cats} onChange={(e) => set('good_with_cats', e.target.value as YesNoUnknown)}>{ynu}</select></label><label><span>Good with children</span><select value={form.good_with_children} onChange={(e) => set('good_with_children', e.target.value as YesNoUnknown)}>{ynu}</select></label></div><div className="form-grid"><label><span>Special needs</span><textarea rows={3} value={form.special_needs} onChange={(e) => set('special_needs', e.target.value)}/></label><label><span>Medical notes</span><textarea rows={3} value={form.medical_notes} onChange={(e) => set('medical_notes', e.target.value)}/></label><label className="full"><span>Adoption requirements</span><textarea rows={3} value={form.adoption_requirements} onChange={(e) => set('adoption_requirements', e.target.value)}/></label></div></div>
 
-          <div className="form-section"><h2>Photos *</h2><p className="section-help">Add 1–5 clear photos. An imported creative is added here as the first image automatically.</p>
+          <div className="form-section"><h2>Photos *</h2><p className="section-help">Add 1–5 clear photos. Imported creatives are automatically cropped to an animal-only image when detection succeeds.</p>
             {existing?.animal_photos && existing.animal_photos.length > 0 && <div className="upload-preview-grid">{existing.animal_photos.map((photo) => <div className="upload-preview" key={photo.id}><img src={photo.public_url} alt=""/><button type="button" onClick={() => removePhoto(photo.id, photo.storage_path)}>Remove</button></div>)}</div>}
             {previews.length > 0 && <div className="upload-preview-grid">{previews.map((item) => <div className="upload-preview" key={item.url}><img src={item.url} alt=""/><span>{item.name}</span></div>)}</div>}
             <label className="file-drop"><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => setFiles(Array.from(e.target.files || []).slice(0, 5))}/><strong>Choose photos</strong><span>JPG, PNG or WebP · max 8 MB each · up to 5 files</span></label>
           </div>
 
-          <div className="form-section"><h2>Foster contact</h2><p className="section-help">These details will be public on the listing.</p><div className="form-grid two"><label><span>Contact name *</span><input required value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)}/></label><label><span>Phone number *</span><input required type="tel" value={form.contact_phone} onChange={(e) => set('contact_phone', e.target.value)} placeholder="Include country code"/></label><label className="checkbox-label"><input type="checkbox" checked={form.whatsapp_ok} onChange={(e) => set('whatsapp_ok', e.target.checked)}/><span>Allow adopters to contact me on WhatsApp</span></label></div></div>
+          <div className="form-section"><h2>Foster contact</h2><p className="section-help">Enter the local number only. The country code is taken from the listing country for WhatsApp and calls.</p><div className="form-grid two"><label><span>Contact name *</span><input required value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} placeholder="Fosterer"/></label><label><span>Phone number (local) *</span><div className="phone-input-row"><span className="dial-code">{dialCode ? `+${dialCode}` : '+'}</span><input required type="tel" inputMode="tel" value={form.contact_phone} onChange={(e) => set('contact_phone', e.target.value)} onBlur={() => set('contact_phone', localPhoneNumber(form.contact_phone, form.country))} placeholder="9876543210"/></div></label><label className="checkbox-label"><input type="checkbox" checked={form.whatsapp_ok} onChange={(e) => set('whatsapp_ok', e.target.checked)}/><span>Allow adopters to contact me on WhatsApp</span></label></div></div>
         </fieldset>
         {error && <div className="error-box">{error}</div>}
         <div className="form-footer"><Link className="button button-secondary" to="/dashboard">Cancel</Link><button className="button" disabled={saving || (editing && existing?.moderation_status !== 'active')}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Publish listing'}</button></div>
